@@ -72,6 +72,8 @@
 		1FA6DE481941CC9E000409FB /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1FA6DE241941CC9E000409FB /* Cocoa.framework */; };
 		1FB3C0241E5061A2002AEB6A /* MPExportPanelAccessoryViewController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 1FB3C0221E5061A2002AEB6A /* MPExportPanelAccessoryViewController.xib */; };
 		1FBBD4CB194CA36500BB3C88 /* hoedown_html_patch.c in Sources */ = {isa = PBXBuildFile; fileRef = 1FBBD4CA194CA36500BB3C88 /* hoedown_html_patch.c */; };
+		D0B1D1000000000000000103 /* MPBidi.c in Sources */ = {isa = PBXBuildFile; fileRef = D0B1D1000000000000000102 /* MPBidi.c */; };
+		D0B1D1000000000000000104 /* MPBidi.c in Sources */ = {isa = PBXBuildFile; fileRef = D0B1D1000000000000000102 /* MPBidi.c */; };
 		1FBDFE9C196170FE00BEEA70 /* Extensions in Resources */ = {isa = PBXBuildFile; fileRef = 1FBDFE9B196170FE00BEEA70 /* Extensions */; };
 		1FBDFEA11962A25A00BEEA70 /* MPGeneralPreferencesViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 1FBDFE9F1962A25A00BEEA70 /* MPGeneralPreferencesViewController.m */; };
 		1FBDFEA51962A27300BEEA70 /* MPGeneralPreferencesViewController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 1FBDFEA31962A27300BEEA70 /* MPGeneralPreferencesViewController.xib */; };
@@ -531,6 +533,8 @@
 		1FB813AB2099A228004EC5D7 /* et */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = et; path = Localization/et.lproj/MPDocument.strings; sourceTree = "<group>"; };
 		1FBBD4C9194CA35900BB3C88 /* hoedown_html_patch.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = hoedown_html_patch.h; sourceTree = "<group>"; };
 		1FBBD4CA194CA36500BB3C88 /* hoedown_html_patch.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = hoedown_html_patch.c; sourceTree = "<group>"; };
+		D0B1D1000000000000000101 /* MPBidi.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MPBidi.h; sourceTree = "<group>"; };
+		D0B1D1000000000000000102 /* MPBidi.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = MPBidi.c; sourceTree = "<group>"; };
 		1FBD430D2099A1A200B348CD /* tr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = tr; path = Localization/tr.lproj/Localizable.strings; sourceTree = "<group>"; };
 		1FBD430E2099A1A200B348CD /* tr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = tr; path = Localization/tr.lproj/MPExportPanelAccessoryViewController.strings; sourceTree = "<group>"; };
 		1FBD430F2099A1A200B348CD /* tr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = tr; path = Localization/tr.lproj/MainMenu.strings; sourceTree = "<group>"; };
@@ -857,6 +861,8 @@
 				3D175F0F1974282400A5EFE8 /* WebView+WebViewPrivateHeaders.h */,
 				1FBBD4C9194CA35900BB3C88 /* hoedown_html_patch.h */,
 				1FBBD4CA194CA36500BB3C88 /* hoedown_html_patch.c */,
+				D0B1D1000000000000000101 /* MPBidi.h */,
+				D0B1D1000000000000000102 /* MPBidi.c */,
 			);
 			name = Extension;
 			path = Code/Extension;
@@ -1872,6 +1878,7 @@
 				1F9A14ED194EEE9900D1C6A9 /* MPMainController.m in Sources */,
 				1F002A23195B3DAE008B8D93 /* MPRenderer.m in Sources */,
 				1FBBD4CB194CA36500BB3C88 /* hoedown_html_patch.c in Sources */,
+				D0B1D1000000000000000103 /* MPBidi.c in Sources */,
 				1F8A8364195346B200B6BF69 /* pmh_styleparser.c in Sources */,
 				1F0D9D93194AC852008E1856 /* MPDocument.m in Sources */,
 				1F96BD801E584A03005E0456 /* MPHomebrewSubprocessController.m in Sources */,
@@ -1896,6 +1903,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D0B1D1000000000000000104 /* MPBidi.c in Sources */,
 				1FFEB31919729F7C00B2254F /* MPAssetTests.m in Sources */,
 				03224E1B02E36783D5307F4A /* MPDocumentIOTests.m in Sources */,
 				B9A8DE030E3748EB899BD45E /* MPScrollSyncTests.m in Sources */,
