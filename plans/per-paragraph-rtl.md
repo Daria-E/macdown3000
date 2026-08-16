@@ -57,9 +57,18 @@ Findings 3 and 4 are why direction is computed rather than delegated to `dir="au
 
 ## Direction Resolution
 
-One function, `MPBidiResolveDirection(text, fallback)`, in C so the hoedown patch,
+One function, `MPBidiResolveDirection(text, fallback, refs)`, in C so the hoedown patch,
 Objective-C and Quick Look can all call it. **Every caller passes the same `fallback`
 constant**, or a punctuation-only block resolves differently per surface.
+
+`refs` answers whether a reference label is defined in the document, and is what makes
+reference-style images resolvable at all. hoedown builds an `<img>` — hiding the alt text
+in an attribute — only when the label resolves, and prints the brackets literally when it
+does not, so `![שלום עולם]` reads one way to the renderer and the other to the editor
+unless the editor is told which. The renderer passes `NULL`, since it scans output where
+the question is already settled; the editor supplies the labels it finds, which it must
+collect anyway for rule 4 below. An unknown label counts as undefined, matching hoedown's
+literal rendering.
 
 ```
 for each character:

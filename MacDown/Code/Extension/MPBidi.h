@@ -30,6 +30,21 @@ typedef enum {
 } MPBidiScanMode;
 
 /**
+ * Whether a reference label is defined in the document.
+ *
+ * A reference image renders as <img alt="..."> when its label resolves and as
+ * literal text when it does not, so the same block reads one way to the
+ * renderer and the other way to the editor unless the editor is told which.
+ * The renderer needs none of this — it scans hoedown's output, where the
+ * question is already settled — so `refs` may be NULL, and an unknown label
+ * is treated as undefined, matching hoedown's literal rendering.
+ */
+typedef struct MPBidiRefs {
+    int (*isDefined)(const uint8_t *label, size_t length, void *context);
+    void *context;
+} MPBidiRefs;
+
+/**
  * Resolves the base direction of `size` bytes of UTF-8 at `data`.
  *
  * Both modes skip markup, entities and maths. hoedown neither escapes nor
@@ -52,7 +67,8 @@ typedef enum {
  */
 MPBidiDirection MPBidiResolveDirection(const uint8_t *data, size_t size,
                                        MPBidiScanMode mode,
-                                       MPBidiDirection fallback);
+                                       MPBidiDirection fallback,
+                                       const MPBidiRefs *refs);
 
 /**
  * The direction every caller falls back to when a block holds no strong

@@ -129,7 +129,10 @@ static size_t mp_close_fence(const uint8_t *data, size_t size, size_t from,
         if (data[i] != delim) { i++; continue; }
         size_t close = 0;
         while (i < size && data[i] == delim) { i++; close++; }
-        if (close >= open)
+        // Exactly, not at least. char_codespan stops at the opening run's
+        // length and leaves the surplus as text, and a lone '$' must not pair
+        // with the first half of a later '$$'.
+        if (close == open)
             return i;
     }
     return SIZE_MAX;
@@ -140,14 +143,88 @@ static size_t mp_close_fence(const uint8_t *data, size_t size, size_t from,
  * hoedown passes author-written HTML through untouched (neither
  * HOEDOWN_HTML_ESCAPE nor HOEDOWN_HTML_SKIP_HTML is set), so raw tags reach
  * both surfaces and must be skipped in both.
+ *
+ * Two things shaped like a tag are not one, and both carry direction:
+ *
+ *   - An angle autolink. hoedown renders <https://example.com> as a link
+ *     whose visible *text* is the URL, so the preview reads those letters
+ *     and the editor must too.
+ *   - Any other bracketed prose. "1 < 2 שלום > 3" has no tag in it; hoedown
+ *     escapes both angles, and skipping between them would strand the editor
+ *     on the fallback while the preview resolved on the Hebrew.
  */
-static size_t mp_skip_tag(const uint8_t *data, size_t size, size_t from)
+static size_t mp_skip_tag(const uint8_t *data, size_t size, size_t from,
+                          MPBidiScanMode mode)
 {
     size_t after = mp_find(data, size, from, ">");
     if (after == SIZE_MAX)
         return SIZE_MAX;
 
     size_t name = from + 1;
+    if (name >= size)
+        return SIZE_MAX;
+
+    // In rendered HTML every '<' opens a tag: hoedown has already escaped any
+    // literal angle to &lt;, and an autolink has become a real <a> element
+    // whose href legitimately contains "://".
+    if (mode == MPBidiScanHTML)
+        goto element;
+
+    // Mirror hoedown's tag_length (document.c:426-463): "<", an optional
+    // "/", then an alphanumeric — or an HTML comment. Anything else it
+    // escapes to &lt;...&gt;, leaving the text visible to the reader, so
+    // skipping it here would strand the editor while the preview resolved on
+    // the real words. "<!DOCTYPE html>" and "<?php ?>" are prose; "<2 x>" is
+    // a tag, however little it looks like one.
+    if (name + 3 < size && memcmp(data + name, "!--", 3) == 0)
+        goto element;
+
+    size_t start = name;
+    if (data[start] == '/')
+        start++;
+    if (start >= size)
+        return SIZE_MAX;
+    uint8_t lead = data[start];
+    int alnum = (lead >= 'a' && lead <= 'z') || (lead >= 'A' && lead <= 'Z')
+                || (lead >= '0' && lead <= '9');
+    if (!alnum)
+        return SIZE_MAX;
+
+    // Mirror tag_length's autolink detection (document.c:426-463): a scheme
+    // of two or more [alnum.+-] then ':', or an address containing '@', with
+    // no space, quote or newline reaching the closing angle. hoedown renders
+    // those as a link whose visible text is the URL itself, so both surfaces
+    // must read it — while "<a href=\"http://x\">" is a plain tag, and
+    // "<http://x.com and 5 >" is one too, its autolink aborted by the space.
+    size_t stop = after - 1;          /* index of '>' */
+    int clean = 1;
+    for (size_t j = name; j < stop; j++) {
+        uint8_t b = data[j];
+        if (b == ' ' || b == '\t' || b == '\n' || b == '"' || b == '\'') {
+            clean = 0;
+            break;
+        }
+    }
+    if (clean && stop > name) {
+        for (size_t j = name; j < stop; j++) {
+            if (data[j] == '@')
+                return SIZE_MAX;
+        }
+        size_t j = name, scheme = 0;
+        while (j < stop) {
+            uint8_t b = data[j];
+            int ok = (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
+                     || (b >= '0' && b <= '9')
+                     || b == '.' || b == '+' || b == '-';
+            if (!ok)
+                break;
+            j++; scheme++;
+        }
+        if (scheme >= 2 && j < stop && data[j] == ':' && j + 1 < stop)
+            return SIZE_MAX;
+    }
+
+element:
     if (name < size && data[name] == '/')
         return after;
     if (name + 4 <= size && memcmp(data + name, "code", 4) == 0) {
@@ -178,6 +255,77 @@ static size_t mp_skip_entity(const uint8_t *data, size_t size, size_t from)
     return SIZE_MAX;
 }
 
+/// hoedown's escape_chars (document.c:60-77): the characters a backslash
+/// turns into literal text. All are ASCII punctuation, hence neutral.
+static int mp_is_escapable(uint8_t c)
+{
+    return strchr("\\`*_{}[]()#+-.!:|&<>/^~$=\"\'", (char)c) != NULL && c != 0;
+}
+
+/// True when `[label]` is defined elsewhere in the document.
+static int mp_ref_defined(const uint8_t *label, size_t len,
+                          const MPBidiRefs *refs)
+{
+    return refs && refs->isDefined && len > 0
+        && refs->isDefined(label, len, refs->context);
+}
+
+/**
+ * Handles "[text]", "![alt]" and their reference and inline forms, returning
+ * the index to resume at, or SIZE_MAX to scan the construct as plain text.
+ *
+ * hoedown builds an <img> only when the label resolves, hiding the alt text
+ * in an attribute; otherwise it emits the brackets literally and the reader
+ * sees every character. Link *text* stays visible either way, so only an
+ * image's alt and a resolved reference label are ever skipped.
+ */
+static size_t mp_skip_bracket(const uint8_t *data, size_t size, size_t from,
+                              const MPBidiRefs *refs)
+{
+    int image = (data[from] == '!');
+    size_t open = from + (image ? 2 : 1);
+    if (open > size)
+        return SIZE_MAX;
+
+    size_t close = open;
+    while (close < size && data[close] != ']')
+        close++;
+    if (close >= size)
+        return SIZE_MAX;
+
+    size_t after = close + 1;
+    const uint8_t *label = data + open;
+    size_t labelLen = close - open;
+
+    // Inline form: the target is hidden, and so is an image's alt.
+    if (after < size && data[after] == '(') {
+        size_t target = mp_find(data, size, after + 1, ")");
+        if (target == SIZE_MAX)
+            return SIZE_MAX;
+        return image ? target : open;   // link text stays visible
+    }
+
+    // Reference form: an empty label collapses onto the bracket text.
+    if (after < size && data[after] == '[') {
+        size_t refEnd = after + 1;
+        while (refEnd < size && data[refEnd] != ']')
+            refEnd++;
+        if (refEnd >= size)
+            return SIZE_MAX;
+        const uint8_t *name = data + after + 1;
+        size_t nameLen = refEnd - after - 1;
+        if (nameLen == 0) { name = label; nameLen = labelLen; }
+        if (!mp_ref_defined(name, nameLen, refs))
+            return SIZE_MAX;            // rendered literally; read it
+        return image ? refEnd + 1 : open;
+    }
+
+    // Shortcut form.
+    if (!mp_ref_defined(label, labelLen, refs))
+        return SIZE_MAX;
+    return image ? after : open;
+}
+
 /**
  * Skips whatever contributes no direction at `*i`, and reports whether it
  * moved. Both modes skip markup, entities and maths: hoedown emits maths
@@ -186,38 +334,53 @@ static size_t mp_skip_entity(const uint8_t *data, size_t size, size_t from)
  * targets differ, being Markdown syntax that the renderer has consumed.
  */
 static int mp_skip_neutral(const uint8_t *data, size_t size, size_t *i,
-                           MPBidiScanMode mode)
+                           MPBidiScanMode mode, const MPBidiRefs *refs)
 {
     uint8_t c = data[*i];
     size_t next = SIZE_MAX;
 
     if (c == '<')
-        next = mp_skip_tag(data, size, *i);
+        next = mp_skip_tag(data, size, *i, mode);
     else if (c == '&')
         next = mp_skip_entity(data, size, *i);
     else if (c == '$')
         next = mp_close_fence(data, size, *i, '$');
-    else if (c == '\\' && *i + 1 < size
-             && (data[*i + 1] == '(' || data[*i + 1] == '['))
-        next = mp_find(data, size, *i + 2,
-                       data[*i + 1] == '(' ? "\\)" : "\\]");
+    else if (mode == MPBidiScanMarkdown && c == '\\' && *i + 1 < size
+             && !(data[*i + 1] == '\\' && *i + 2 < size
+                  && (data[*i + 2] == '(' || data[*i + 2] == '['))
+             && mp_is_escapable(data[*i + 1])) {
+        // A backslash escape. hoedown emits the character literally, so the
+        // syntax it would otherwise have started never exists: "\`not code\`"
+        // is prose about backticks. Every escapable character is ASCII
+        // punctuation and therefore neutral, so skipping both bytes is right.
+        next = *i + 2;
+    }
+    else if (c == '\\') {
+        // Maths delimiters, whose backslash count differs by side. hoedown's
+        // char_escape lists ( ) [ ] among the escapable characters and its
+        // maths branch requires \\(, so in source a single \( is an escaped
+        // paren rendering as "(" — while rndr_math emits the delimiter with
+        // one backslash into the HTML.
+        size_t slashes = (mode == MPBidiScanMarkdown) ? 2 : 1;
+        size_t open = *i + slashes;
+        if (open < size && (data[open] == '(' || data[open] == '[')
+            && (slashes == 1 || data[*i + 1] == '\\'))
+        {
+            const char *close = (data[open] == '(')
+                ? (slashes == 2 ? "\\\\)" : "\\)")
+                : (slashes == 2 ? "\\\\]" : "\\]");
+            next = mp_find(data, size, open + 1, close);
+        }
+    }
     else if (mode == MPBidiScanMarkdown) {
         if (c == '`')
             next = mp_close_fence(data, size, *i, '`');
-        else if (c == '~' && *i + 2 < size
-                 && data[*i + 1] == '~' && data[*i + 2] == '~')
-            next = mp_close_fence(data, size, *i, '~');
-        else if (c == ']' && *i + 1 < size
-                 && (data[*i + 1] == '(' || data[*i + 1] == '['))
-            next = mp_find(data, size, *i + 2,
-                           data[*i + 1] == '(' ? ")" : "]");
-        else if (c == '!' && *i + 1 < size && data[*i + 1] == '[') {
-            // Stop before the bracket so the target is skipped next pass.
-            size_t j = *i + 2;
-            while (j < size && data[j] != ']')
-                j++;
-            next = (j < size) ? j : SIZE_MAX;
-        }
+        // Links and images. Which parts a reader sees depends on the form:
+        // an inline target is always hidden, a reference label only when it
+        // resolves, and an image's alt only when the image is really built.
+        else if (c == '[' || (c == '!' && *i + 1 < size
+                              && data[*i + 1] == '['))
+            next = mp_skip_bracket(data, size, *i, refs);
     }
 
     if (next == SIZE_MAX || next <= *i)
@@ -228,14 +391,15 @@ static int mp_skip_neutral(const uint8_t *data, size_t size, size_t *i,
 
 MPBidiDirection MPBidiResolveDirection(const uint8_t *data, size_t size,
                                        MPBidiScanMode mode,
-                                       MPBidiDirection fallback)
+                                       MPBidiDirection fallback,
+                                       const MPBidiRefs *refs)
 {
     if (!data || size == 0)
         return fallback;
 
     size_t i = 0;
     while (i < size) {
-        if (mp_skip_neutral(data, size, &i, mode))
+        if (mp_skip_neutral(data, size, &i, mode, refs))
             continue;
 
         uint32_t cp = mp_next(data, size, &i);

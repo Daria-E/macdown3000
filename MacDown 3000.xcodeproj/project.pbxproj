@@ -124,6 +124,7 @@
 		994CB190A9920B27B601E936 /* MacDownCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 86AE530AAF3D3E54B419F5BB /* MacDownCore.framework */; };
 		9B375A26E55FD5126DD20533 /* PreviewViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = C8D2C0415282E2600BD87E85 /* PreviewViewController.m */; };
 		A1B2C3D4E5F67890ABCDEF12 /* MPZoomTests.m in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F67890ABCDEF1234 /* MPZoomTests.m */; };
+		D0B1D1000000000000000106 /* MPBidiTests.m in Sources */ = {isa = PBXBuildFile; fileRef = D0B1D1000000000000000105 /* MPBidiTests.m */; };
 		A1DDD72A2F19A20300C407CD /* FileURLInliningTests.m in Sources */ = {isa = PBXBuildFile; fileRef = A1DDD7292F19A20300C407CD /* FileURLInliningTests.m */; };
 		A1E2BE342F0A754F00DF65A1 /* FileURLInlining.m in Sources */ = {isa = PBXBuildFile; fileRef = A1E2BE332F0A754F00DF65A1 /* FileURLInlining.m */; };
 		A2310231000000000001IMAG /* Images in Resources */ = {isa = PBXBuildFile; fileRef = A2310231000000000000IMAG /* Images */; };
@@ -669,6 +670,7 @@
 		AB47A87B03D655D2F2285141 /* MPUpdaterTests.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MPUpdaterTests.m; sourceTree = "<group>"; };
 		ADEEE219B17DDB468C3A7EBF /* Pods-MacDownQuickLook.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-MacDownQuickLook.release.xcconfig"; path = "Pods/Target Support Files/Pods-MacDownQuickLook/Pods-MacDownQuickLook.release.xcconfig"; sourceTree = "<group>"; };
 		B2C3D4E5F67890ABCDEF1234 /* MPZoomTests.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = MPZoomTests.m; sourceTree = "<group>"; };
+		D0B1D1000000000000000105 /* MPBidiTests.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MPBidiTests.m; sourceTree = "<group>"; };
 		B3BD139B59E787FBB9F38228 /* MPEditorViewSubstitutionTests.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = MPEditorViewSubstitutionTests.m; sourceTree = "<group>"; };
 		66A67CD2B90882C7F91B6251 /* MPEditorViewPasteboardTests.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = MPEditorViewPasteboardTests.m; sourceTree = "<group>"; };
 		C13407D1311EAF420CEE31C9 /* MPFileNode.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; name = MPFileNode.h; path = MacDown/Code/Sidebar/MPFileNode.h; sourceTree = "<group>"; };
@@ -1195,6 +1197,7 @@
 				5E44CF1BD72E49A99DA6A4C1 /* MPPaneToggleTests.m */,
 				504AC0000000000000000004 /* MPPDFAnchorInjectorTests.m */,
 				B2C3D4E5F67890ABCDEF1234 /* MPZoomTests.m */,
+				D0B1D1000000000000000105 /* MPBidiTests.m */,
 				A0A5A0E543A6B3CE9E17EE7B /* MPFileNodeTests.m */,
 				A01DF3116B648FB08F2D42B0 /* MPFolderWatcherTests.m */,
 				4BDC351D0D920E583085F2C6 /* MPFolderSidebarViewControllerTests.m */,
@@ -1903,6 +1906,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D0B1D1000000000000000106 /* MPBidiTests.m in Sources */,
 				D0B1D1000000000000000104 /* MPBidi.c in Sources */,
 				1FFEB31919729F7C00B2254F /* MPAssetTests.m in Sources */,
 				03224E1B02E36783D5307F4A /* MPDocumentIOTests.m in Sources */,
