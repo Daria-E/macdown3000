@@ -26,8 +26,15 @@ curling).
 ## Mechanism
 
 **Format ▸ Paragraph ▸ Writing Direction ▸ Automatic / Left-to-Right / Right-to-Left**,
-acting on the blocks intersecting the selection, with a checkmark showing the current
-state.
+acting on **the block the insertion point is in**, with a checkmark showing that block's
+current state. Automatic resolution from content is the default and remains in force for
+every block the user has not overridden; this is the escape hatch for the ones it gets
+wrong, not the primary mechanism.
+
+Scoping to the caret rather than the selection keeps the command's effect legible — one
+block, one mark, one undo step — and sidesteps the mixed-selection checkmark question
+entirely. A range selection spanning several blocks is out of scope for now; if it is
+wanted later it is a loop over this operation, not a different one.
 
 The override inserts an invisible Unicode direction mark into the block — `U+200F`
 RIGHT-TO-LEFT MARK or `U+200E` LEFT-TO-RIGHT MARK — and removes any existing mark.
@@ -101,8 +108,7 @@ Both this and the task-list rule are cases where the *content*, not the block ty
 Enumerating types is what let the three previous design gates through, so the implementation
 should derive both from the parser's own prefix handling rather than from a list.
 
-For a mixed selection the command applies to the overridable blocks and skips the rest; the
-checkmark shows a mixed state rather than any one direction.
+When the caret sits in a block that cannot take an override, the menu item is disabled.
 
 ## Open Problem: the mark perturbs parsing
 
@@ -193,7 +199,8 @@ Supporting tests:
 - Applying twice is idempotent — one mark, not two.
 - Switching LTR → RTL replaces the mark rather than accumulating.
 - Non-overridable blocks leave the document untouched and disable the menu item.
-- A mixed selection overrides what it can and reports a mixed checkmark state.
+- The menu item is disabled, and the document untouched, when the caret is in a
+  non-overridable block.
 - A heading overridden to RTL keeps its slug `id`, so anchor links still resolve. (Covered
   by the invariant, but worth naming since it is the failure the gates found.)
 
