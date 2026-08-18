@@ -1020,9 +1020,9 @@ static NSString * const kMPTestPrismAbsenceMarker = @"Prism.highlightAll";
     [self.renderer parseMarkdown:self.dataSource.markdown];
     NSString *html = [self.renderer HTMLForExportWithStyles:NO highlighting:NO];
 
-    XCTAssertTrue([html containsString:@"<ul>"],
+    XCTAssertTrue([html containsString:@"<ul dir=\"ltr\">"],
                   @"Should render unordered list with hyphen after paragraph");
-    XCTAssertTrue([html containsString:@"<li>Item 1</li>"],
+    XCTAssertTrue([html containsString:@"<li dir=\"ltr\">Item 1</li>"],
                   @"Should contain list items");
 }
 
@@ -1033,7 +1033,7 @@ static NSString * const kMPTestPrismAbsenceMarker = @"Prism.highlightAll";
     [self.renderer parseMarkdown:self.dataSource.markdown];
     NSString *html = [self.renderer HTMLForExportWithStyles:NO highlighting:NO];
 
-    XCTAssertTrue([html containsString:@"<ul>"],
+    XCTAssertTrue([html containsString:@"<ul dir=\"ltr\">"],
                   @"Should render unordered list with asterisk after paragraph");
 }
 
@@ -1044,7 +1044,7 @@ static NSString * const kMPTestPrismAbsenceMarker = @"Prism.highlightAll";
     [self.renderer parseMarkdown:self.dataSource.markdown];
     NSString *html = [self.renderer HTMLForExportWithStyles:NO highlighting:NO];
 
-    XCTAssertTrue([html containsString:@"<ul>"],
+    XCTAssertTrue([html containsString:@"<ul dir=\"ltr\">"],
                   @"Should render unordered list with plus after paragraph");
 }
 
@@ -1055,9 +1055,9 @@ static NSString * const kMPTestPrismAbsenceMarker = @"Prism.highlightAll";
     [self.renderer parseMarkdown:self.dataSource.markdown];
     NSString *html = [self.renderer HTMLForExportWithStyles:NO highlighting:NO];
 
-    XCTAssertTrue([html containsString:@"<ol>"],
+    XCTAssertTrue([html containsString:@"<ol dir=\"ltr\">"],
                   @"Should render ordered list after paragraph");
-    XCTAssertTrue([html containsString:@"<li>First</li>"],
+    XCTAssertTrue([html containsString:@"<li dir=\"ltr\">First</li>"],
                   @"Should contain list items");
 }
 
@@ -1069,7 +1069,7 @@ static NSString * const kMPTestPrismAbsenceMarker = @"Prism.highlightAll";
     [self.renderer parseMarkdown:self.dataSource.markdown];
     NSString *html = [self.renderer HTMLForExportWithStyles:NO highlighting:NO];
 
-    XCTAssertTrue([html containsString:@"<ul>"],
+    XCTAssertTrue([html containsString:@"<ul dir=\"ltr\">"],
                   @"Lists with blank lines should still work");
 }
 
@@ -1081,7 +1081,7 @@ static NSString * const kMPTestPrismAbsenceMarker = @"Prism.highlightAll";
     [self.renderer parseMarkdown:self.dataSource.markdown];
     NSString *html = [self.renderer HTMLForExportWithStyles:NO highlighting:NO];
 
-    XCTAssertTrue([html containsString:@"<ul>"],
+    XCTAssertTrue([html containsString:@"<ul dir=\"ltr\">"],
                   @"Should render list after paragraph without colon");
 }
 

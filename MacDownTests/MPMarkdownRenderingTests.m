@@ -749,7 +749,7 @@
                   @"CRLF heading should render as an <h1> element");
     XCTAssertTrue([crlfHtml containsString:@"Heading"],
                   @"CRLF heading text should appear in output");
-    XCTAssertTrue([crlfHtml containsString:@"<p>"],
+    XCTAssertTrue([crlfHtml containsString:@"<p dir=\"ltr\">"],
                   @"CRLF paragraph should render as <p>");
     XCTAssertEqualObjects(lfHtml, crlfHtml,
                           @"CRLF and LF content should produce identical HTML");
@@ -774,7 +774,7 @@
                                withExtensions:extFlags
                                 rendererFlags:rendFlags];
 
-    XCTAssertTrue([crlfHtml containsString:@"<ul>"],
+    XCTAssertTrue([crlfHtml containsString:@"<ul dir=\"ltr\">"],
                   @"CRLF list after paragraph should render as <ul>");
     XCTAssertTrue([crlfHtml containsString:@"List item"],
                   @"CRLF list item text should appear in output");

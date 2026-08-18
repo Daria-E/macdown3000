@@ -277,6 +277,28 @@
                    @"export.css rules should not appear when withStyles=NO");
 }
 
+- (void)testHTMLExportEmbedsBidiCSSWithAndWithoutStyles
+{
+    // Every block carries a dir attribute unconditionally, so the LTR island
+    // that keeps code and maths from being bidi-reordered must ship with them —
+    // including a styles-off export, where the styles channel would otherwise
+    // stay MPAssetNone and drop every sheet. unicode-bidi: isolate is unique to
+    // bidi.css, so its presence proves the sheet was embedded.
+    self.dataSource.markdown = @"# Test\n\n```\ncode\n```";
+    self.dataSource.title = @"Bidi Export";
+    [self.renderer parseMarkdown:self.dataSource.markdown];
+
+    NSString *withStyles =
+        [self.renderer HTMLForExportWithStyles:YES highlighting:NO];
+    NSString *withoutStyles =
+        [self.renderer HTMLForExportWithStyles:NO highlighting:NO];
+
+    XCTAssertTrue([withStyles containsString:@"unicode-bidi: isolate"],
+                  @"bidi.css island should embed when styles are on");
+    XCTAssertTrue([withoutStyles containsString:@"unicode-bidi: isolate"],
+                  @"bidi.css island should embed even when styles are off");
+}
+
 - (void)testHTMLExportWithHighlightingIncludesExportCSS
 {
     // Set up test markdown with code
@@ -354,7 +376,7 @@
     NSString *html = [self.renderer HTMLForExportWithStyles:YES highlighting:NO];
 
     XCTAssertNotNil(html, @"Exported HTML should not be nil");
-    XCTAssertTrue([html containsString:@"<li>"],
+    XCTAssertTrue([html containsString:@"<li dir=\"ltr\">"],
                   @"Should contain list items");
     XCTAssertTrue([html containsString:@"word-break"],
                   @"Word-break rules should be present for list items");
@@ -414,7 +436,7 @@
                                                      error:&error];
     XCTAssertNil(error, @"Should read file without error");
     XCTAssertEqualObjects(readBack, html, @"Content should match");
-    XCTAssertTrue([readBack containsString:@"<h1 id=\"test-document\">Test Document</h1>"], @"Should contain heading");
+    XCTAssertTrue([readBack containsString:@"<h1 dir=\"ltr\" id=\"test-document\">Test Document</h1>"], @"Should contain heading");
     XCTAssertTrue([readBack containsString:@"<strong>paragraph</strong>"], @"Should contain bold text");
 }
 
@@ -444,7 +466,7 @@
     NSString *readBack = [NSString stringWithContentsOfURL:fileURL
                                                   encoding:NSUTF8StringEncoding
                                                      error:&error];
-    XCTAssertTrue([readBack containsString:@"<h1 id=\"new-content\">New Content</h1>"], @"Should have new content");
+    XCTAssertTrue([readBack containsString:@"<h1 dir=\"ltr\" id=\"new-content\">New Content</h1>"], @"Should have new content");
     XCTAssertFalse([readBack containsString:@"Initial"], @"Should not have old content");
 }
 
@@ -475,9 +497,9 @@
     XCTAssertTrue([content containsString:@"<body"], @"Should have body");
     XCTAssertTrue([content containsString:@"<h1 "], @"Should have h1");
     XCTAssertTrue([content containsString:@"<h2 "], @"Should have h2");
-    XCTAssertTrue([content containsString:@"<ul>"], @"Should have list");
-    XCTAssertTrue([content containsString:@"<li>"], @"Should have list items");
-    XCTAssertTrue([content containsString:@"<pre>"] || [content containsString:@"<code>"],
+    XCTAssertTrue([content containsString:@"<ul dir=\"ltr\">"], @"Should have list");
+    XCTAssertTrue([content containsString:@"<li dir=\"ltr\">"], @"Should have list items");
+    XCTAssertTrue([content containsString:@"<pre dir=\"ltr\""] || [content containsString:@"<code>"],
                   @"Should have code block");
 }
 

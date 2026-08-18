@@ -52,4 +52,31 @@ void hoedown_patch_render_toc_header(
      hoedown_buffer *ob, const hoedown_buffer *content, int level,
      const hoedown_renderer_data *data);
 
+// Block callbacks that declare an explicit bidi dir attribute resolved from the
+// block's own rendered content, so a mixed-direction document lays each block
+// out in its own direction. See plans/per-paragraph-rtl.md.
+void hoedown_patch_render_paragraph(
+    hoedown_buffer *ob, const hoedown_buffer *content,
+    const hoedown_renderer_data *data);
+
+void hoedown_patch_render_blockquote(
+    hoedown_buffer *ob, const hoedown_buffer *content,
+    const hoedown_renderer_data *data);
+
+void hoedown_patch_render_list(
+    hoedown_buffer *ob, const hoedown_buffer *content,
+    hoedown_list_flags flags, const hoedown_renderer_data *data);
+
+void hoedown_patch_render_table(
+    hoedown_buffer *ob, const hoedown_buffer *content,
+    const hoedown_renderer_data *data);
+
+void hoedown_patch_render_table_cell(
+    hoedown_buffer *ob, const hoedown_buffer *content,
+    hoedown_table_flags flags, const hoedown_renderer_data *data);
+
+void hoedown_patch_render_footnote_def(
+    hoedown_buffer *ob, const hoedown_buffer *content, unsigned int num,
+    const hoedown_renderer_data *data);
+
 #endif

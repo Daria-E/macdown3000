@@ -1,0 +1,80 @@
+/*
+ * bidi.css — bidirectional-text support for the preview.
+ *
+ * Every text-bearing block is rendered with an explicit dir="ltr" / dir="rtl"
+ * attribute (see hoedown_html_patch.c and plans/per-paragraph-rtl.md), so the
+ * browser's bidi algorithm lays each block out in its own direction. This
+ * sheet does the two things that per-block dir alone cannot:
+ *
+ *   1. Holds code and maths in a left-to-right island, since bidi reordering
+ *      scrambles brackets, indentation and MathJax's left-based offsets.
+ *   2. Mirrors the theme gutters (blockquote rule, list markers) for RTL blocks,
+ *      which the theme sheets place with physical left/right properties.
+ *
+ * The sheet is static and direction-independent, so it can live permanently in
+ * <head> without ever invalidating the preview's DOM fast path. It is
+ * registered after the theme and export sheets so its overrides win, and the
+ * deployment target predates :dir(), so [dir="rtl"] attribute selectors are
+ * used throughout.
+ */
+
+/* --- 1. The LTR island ------------------------------------------------- */
+
+/* Code never resolves RTL: reordering scrambles brackets and indentation.
+   isolate keeps an inline code span from perturbing the bidi of the RTL run
+   around it, and renders the span's own text left-to-right. */
+pre,
+pre code,
+code,
+kbd,
+samp,
+tt {
+    direction: ltr;
+    text-align: left;
+    unicode-bidi: isolate;
+}
+
+/* Prism's line-numbers and show-language plugins position the gutter and the
+   language label with physical offsets and must stay in an LTR frame. */
+pre.line-numbers,
+div.prism-show-language {
+    direction: ltr;
+}
+
+/* MathJax 2.7 HTML-CSS output is a run of inline-block spans with left-based
+   offsets and requires an LTR container; !important beats MathJax's own inline
+   styles. Display maths stays centred and reads left-to-right inside an RTL
+   paragraph. */
+.MathJax,
+.MathJax_Display,
+.MathJax_Preview,
+.MathJax_MathML {
+    direction: ltr !important;
+}
+
+.MathJax_Display {
+    text-align: center;
+}
+
+/* Mermaid and Graphviz emit SVG whose layout is coordinate-based and immune to
+   CSS direction, so no rule is needed: their init scripts replace the <pre>
+   with a bare <svg> carrying no class this sheet could target anyway. */
+
+/* --- 2. RTL gutter mirroring ------------------------------------------- */
+
+/* Theme sheets rule and indent with physical left/right properties. These
+   overrides mirror them for RTL blocks. Values are calibrated to the default
+   theme (GitHub2); the other bundled themes carry their own physical values
+   and their RTL gutters are refined per theme as a follow-up. Text direction
+   and alignment are already correct for every theme from the dir attribute
+   alone — only the rule/marker side is theme-dependent. */
+blockquote[dir="rtl"] {
+    border-left: 0;
+    border-right: 4px solid #dddddd;
+}
+
+ul[dir="rtl"],
+ol[dir="rtl"] {
+    padding-left: 0;
+    padding-right: 30px;
+}

@@ -6,11 +6,13 @@
 //  Copyright (c) 2014 Tzu-ping Chung . All rights reserved.
 //
 
+#include <ctype.h>
 #include <string.h>
 #include <hoedown/escape.h>
 #include <hoedown/document.h>
 #include <hoedown/html.h>
 #include "hoedown_html_patch.h"
+#include "MPBidi.h"
 
 #define USE_XHTML(opt) (opt->flags & HOEDOWN_HTML_USE_XHTML)
 #define USE_BLOCKCODE_INFORMATION(opt) \
@@ -41,6 +43,28 @@ static hoedown_buffer *new_growable_buffer(size_t size_hint)
 int hoedown_patch_get_checkbox_index(void)
 {
     return g_checkbox_index;
+}
+
+// Writes ` dir="ltr"` or ` dir="rtl"` for the base writing direction of a
+// block's rendered content. Every text-bearing block declares its direction
+// explicitly rather than inheriting it, so a Hebrew paragraph beside an English
+// one lays out correctly and neither reaches into code or maths. The renderer
+// scans hoedown's already-produced HTML, so it passes MPBidiScanHTML and no
+// reference table — reference labels are settled by the time output exists.
+static void put_bidi_dir(hoedown_buffer *ob, const uint8_t *data, size_t size)
+{
+    MPBidiDirection dir = MPBidiResolveDirection(data, size, MPBidiScanHTML,
+                                                 MPBidiDefaultFallback, NULL);
+    hoedown_buffer_puts(ob, dir == MPBidiDirectionRTL ? " dir=\"rtl\""
+                                                      : " dir=\"ltr\"");
+}
+
+// rndr_linebreak from html.c, which is static there. Reproduced so the
+// paragraph callback's HOEDOWN_HTML_HARD_WRAP branch honours USE_XHTML.
+static void put_linebreak(hoedown_buffer *ob,
+                          const hoedown_html_renderer_state *state)
+{
+    hoedown_buffer_puts(ob, USE_XHTML(state) ? "<br/>\n" : "<br>\n");
 }
 
 // rndr_blockcode from HEAD. The "language-" prefix in class in needed to make
@@ -81,7 +105,11 @@ void hoedown_patch_render_blockcode(
             lang = mapped;
     }
 
-    HOEDOWN_BUFPUTSL(ob, "<div><pre");
+    // Code never resolves RTL: bidi reordering scrambles brackets and
+    // indentation. The dir attribute pairs with bidi.css's LTR island so code
+    // stays left-to-right even inside an RTL document, and even where the
+    // stylesheet is absent (e.g. a styles-off export).
+    HOEDOWN_BUFPUTSL(ob, "<div><pre dir=\"ltr\"");
     if (state->flags & HOEDOWN_HTML_BLOCKCODE_LINE_NUMBERS)
         HOEDOWN_BUFPUTSL(ob, " class=\"line-numbers\"");
     if (back && back->size)
@@ -128,12 +156,17 @@ void hoedown_patch_render_listitem(
         if (flags & HOEDOWN_LI_BLOCK)
             offset = 3;
 
+        // The item declares its own direction, resolved over its content. A
+        // leading "[ ]" checkbox marker is neutral, so the direction still
+        // falls on the item's text.
         // Do task list checkbox ([x], [X], or [ ]).
         if (USE_TASK_LIST(state) && text->size >= 3)
         {
             if (strncmp((char *)(text->data + offset), "[ ]", 3) == 0)
             {
-                HOEDOWN_BUFPUTSL(ob, "<li class=\"task-list-item\">");
+                HOEDOWN_BUFPUTSL(ob, "<li");
+                put_bidi_dir(ob, text->data, text->size);
+                HOEDOWN_BUFPUTSL(ob, " class=\"task-list-item\">");
                 hoedown_buffer_put(ob, text->data, offset);
                 // Include data-checkbox-index for interactive checkbox support
                 hoedown_buffer_printf(ob,
@@ -144,7 +177,9 @@ void hoedown_patch_render_listitem(
             else if (strncmp((char *)(text->data + offset), "[x]", 3) == 0 ||
                      strncmp((char *)(text->data + offset), "[X]", 3) == 0)
             {
-                HOEDOWN_BUFPUTSL(ob, "<li class=\"task-list-item\">");
+                HOEDOWN_BUFPUTSL(ob, "<li");
+                put_bidi_dir(ob, text->data, text->size);
+                HOEDOWN_BUFPUTSL(ob, " class=\"task-list-item\">");
                 hoedown_buffer_put(ob, text->data, offset);
                 // Include data-checkbox-index for interactive checkbox support
                 hoedown_buffer_printf(ob,
@@ -154,13 +189,17 @@ void hoedown_patch_render_listitem(
             }
             else
             {
-                HOEDOWN_BUFPUTSL(ob, "<li>");
+                HOEDOWN_BUFPUTSL(ob, "<li");
+                put_bidi_dir(ob, text->data, text->size);
+                HOEDOWN_BUFPUTSL(ob, ">");
                 offset = 0;
             }
         }
         else
         {
-            HOEDOWN_BUFPUTSL(ob, "<li>");
+            HOEDOWN_BUFPUTSL(ob, "<li");
+            put_bidi_dir(ob, text->data, text->size);
+            HOEDOWN_BUFPUTSL(ob, ">");
             offset = 0;
         }
 		size_t size = text->size;
@@ -337,13 +376,203 @@ void hoedown_patch_render_header(
     if (slug->size == 0)
         HOEDOWN_BUFPUTSL(slug, "section");
 
-    hoedown_buffer_printf(ob, "<h%d id=\"", level);
+    hoedown_buffer_printf(ob, "<h%d", level);
+    put_bidi_dir(ob, content ? content->data : NULL, content ? content->size : 0);
+    HOEDOWN_BUFPUTSL(ob, " id=\"");
     hoedown_buffer_put(ob, slug->data, slug->size);
     HOEDOWN_BUFPUTSL(ob, "\">");
     if (content) hoedown_buffer_put(ob, content->data, content->size);
     hoedown_buffer_printf(ob, "</h%d>\n", level);
 
     hoedown_buffer_free(slug);
+}
+
+// The block callbacks below reproduce hoedown's html.c defaults and add an
+// explicit dir attribute resolved from the block's own content. Direction is
+// never inherited (see MPBidi.h and plans/per-paragraph-rtl.md): declaring it
+// on every block is what lets a mixed-direction document lay each block out
+// correctly without a global rule reaching code, maths or the theme gutters.
+
+// rndr_paragraph from html.c, plus dir. The leading-isspace skip, the two early
+// returns and the HARD_WRAP branch (via put_linebreak) are reproduced exactly.
+void hoedown_patch_render_paragraph(
+    hoedown_buffer *ob, const hoedown_buffer *content,
+    const hoedown_renderer_data *data)
+{
+    hoedown_html_renderer_state *state = data->opaque;
+    size_t i = 0;
+
+    if (ob->size) hoedown_buffer_putc(ob, '\n');
+
+    if (!content || !content->size)
+        return;
+
+    while (i < content->size && isspace(content->data[i]))
+        i++;
+
+    if (i == content->size)
+        return;
+
+    HOEDOWN_BUFPUTSL(ob, "<p");
+    put_bidi_dir(ob, content->data, content->size);
+    HOEDOWN_BUFPUTSL(ob, ">");
+
+    if (state->flags & HOEDOWN_HTML_HARD_WRAP)
+    {
+        size_t org;
+        while (i < content->size)
+        {
+            org = i;
+            while (i < content->size && content->data[i] != '\n')
+                i++;
+
+            if (i > org)
+                hoedown_buffer_put(ob, content->data + org, i - org);
+
+            // Do not insert a line break if this newline is the last
+            // character on the paragraph.
+            if (i >= content->size - 1)
+                break;
+
+            put_linebreak(ob, state);
+            i++;
+        }
+    }
+    else
+    {
+        hoedown_buffer_put(ob, content->data + i, content->size - i);
+    }
+    HOEDOWN_BUFPUTSL(ob, "</p>\n");
+}
+
+// rndr_blockquote from html.c, plus dir resolved over its own content.
+void hoedown_patch_render_blockquote(
+    hoedown_buffer *ob, const hoedown_buffer *content,
+    const hoedown_renderer_data *data)
+{
+    (void)data;
+    if (ob->size) hoedown_buffer_putc(ob, '\n');
+    HOEDOWN_BUFPUTSL(ob, "<blockquote");
+    put_bidi_dir(ob, content ? content->data : NULL,
+                 content ? content->size : 0);
+    HOEDOWN_BUFPUTSL(ob, ">\n");
+    if (content) hoedown_buffer_put(ob, content->data, content->size);
+    HOEDOWN_BUFPUTSL(ob, "</blockquote>\n");
+}
+
+// rndr_list from html.c, plus dir resolved over the whole list so the markers
+// sit on the correct side.
+void hoedown_patch_render_list(
+    hoedown_buffer *ob, const hoedown_buffer *content,
+    hoedown_list_flags flags, const hoedown_renderer_data *data)
+{
+    (void)data;
+    int ordered = (flags & HOEDOWN_LIST_ORDERED) != 0;
+    if (ob->size) hoedown_buffer_putc(ob, '\n');
+    hoedown_buffer_puts(ob, ordered ? "<ol" : "<ul");
+    put_bidi_dir(ob, content ? content->data : NULL,
+                 content ? content->size : 0);
+    HOEDOWN_BUFPUTSL(ob, ">\n");
+    if (content) hoedown_buffer_put(ob, content->data, content->size);
+    hoedown_buffer_puts(ob, ordered ? "</ol>\n" : "</ul>\n");
+}
+
+// rndr_table from html.c, plus dir resolved over the whole table so a Hebrew
+// table gets RTL column order.
+void hoedown_patch_render_table(
+    hoedown_buffer *ob, const hoedown_buffer *content,
+    const hoedown_renderer_data *data)
+{
+    (void)data;
+    if (ob->size) hoedown_buffer_putc(ob, '\n');
+    HOEDOWN_BUFPUTSL(ob, "<table");
+    put_bidi_dir(ob, content ? content->data : NULL,
+                 content ? content->size : 0);
+    HOEDOWN_BUFPUTSL(ob, ">\n");
+    if (content) hoedown_buffer_put(ob, content->data, content->size);
+    HOEDOWN_BUFPUTSL(ob, "</table>\n");
+}
+
+// rndr_tablecell from html.c, plus dir. This one callback emits both <th> and
+// <td>; hoedown's existing text-align style is preserved.
+void hoedown_patch_render_table_cell(
+    hoedown_buffer *ob, const hoedown_buffer *content,
+    hoedown_table_flags flags, const hoedown_renderer_data *data)
+{
+    (void)data;
+    if (flags & HOEDOWN_TABLE_HEADER)
+        HOEDOWN_BUFPUTSL(ob, "<th");
+    else
+        HOEDOWN_BUFPUTSL(ob, "<td");
+
+    put_bidi_dir(ob, content ? content->data : NULL,
+                 content ? content->size : 0);
+
+    switch (flags & HOEDOWN_TABLE_ALIGNMASK)
+    {
+    case HOEDOWN_TABLE_ALIGN_CENTER:
+        HOEDOWN_BUFPUTSL(ob, " style=\"text-align: center\">");
+        break;
+    case HOEDOWN_TABLE_ALIGN_LEFT:
+        HOEDOWN_BUFPUTSL(ob, " style=\"text-align: left\">");
+        break;
+    case HOEDOWN_TABLE_ALIGN_RIGHT:
+        HOEDOWN_BUFPUTSL(ob, " style=\"text-align: right\">");
+        break;
+    default:
+        HOEDOWN_BUFPUTSL(ob, ">");
+    }
+
+    if (content)
+        hoedown_buffer_put(ob, content->data, content->size);
+
+    if (flags & HOEDOWN_TABLE_HEADER)
+        HOEDOWN_BUFPUTSL(ob, "</th>\n");
+    else
+        HOEDOWN_BUFPUTSL(ob, "</td>\n");
+}
+
+// rndr_footnote_def from html.c, plus dir on the <li>. The back-reference
+// anchor is still inserted at the end of the first paragraph block.
+void hoedown_patch_render_footnote_def(
+    hoedown_buffer *ob, const hoedown_buffer *content, unsigned int num,
+    const hoedown_renderer_data *data)
+{
+    (void)data;
+    size_t i = 0;
+    int pfound = 0;
+
+    // Insert anchor at the end of first paragraph block.
+    if (content)
+    {
+        while ((i + 3) < content->size)
+        {
+            if (content->data[i++] != '<') continue;
+            if (content->data[i++] != '/') continue;
+            if (content->data[i++] != 'p' && content->data[i] != 'P') continue;
+            if (content->data[i] != '>') continue;
+            i -= 3;
+            pfound = 1;
+            break;
+        }
+    }
+
+    HOEDOWN_BUFPUTSL(ob, "\n<li");
+    put_bidi_dir(ob, content ? content->data : NULL,
+                 content ? content->size : 0);
+    hoedown_buffer_printf(ob, " id=\"fn%d\">\n", num);
+    if (pfound)
+    {
+        hoedown_buffer_put(ob, content->data, i);
+        hoedown_buffer_printf(ob,
+            "&nbsp;<a href=\"#fnref%d\" rev=\"footnote\">&#8617;</a>", num);
+        hoedown_buffer_put(ob, content->data + i, content->size - i);
+    }
+    else if (content)
+    {
+        hoedown_buffer_put(ob, content->data, content->size);
+    }
+    HOEDOWN_BUFPUTSL(ob, "</li>\n");
 }
 
 // Returns 1 if the tag starting at content->data[i] (the '<') is a replaced
@@ -547,7 +776,10 @@ void hoedown_patch_render_toc_header(
         slugify(slug, content);
         if (slug->size == 0)
             HOEDOWN_BUFPUTSL(slug, "section");
-        HOEDOWN_BUFPUTSL(ob, "<a href=\"#");
+        HOEDOWN_BUFPUTSL(ob, "<a");
+        put_bidi_dir(ob, content ? content->data : NULL,
+                     content ? content->size : 0);
+        HOEDOWN_BUFPUTSL(ob, " href=\"#");
         hoedown_buffer_put(ob, slug->data, slug->size);
         HOEDOWN_BUFPUTSL(ob, "\">");
         hoedown_buffer_free(slug);

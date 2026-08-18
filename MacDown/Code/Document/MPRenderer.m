@@ -425,6 +425,14 @@ NS_INLINE hoedown_renderer *MPCreateHTMLRenderer(MPRenderer *renderer, int tocLe
     htmlRenderer->listitem = hoedown_patch_render_listitem;
     htmlRenderer->header = hoedown_patch_render_header;
     htmlRenderer->table_header = hoedown_patch_render_table_header;
+    // Per-block writing direction: each of these declares an explicit dir
+    // attribute resolved from its own content. See hoedown_html_patch.c.
+    htmlRenderer->paragraph = hoedown_patch_render_paragraph;
+    htmlRenderer->blockquote = hoedown_patch_render_blockquote;
+    htmlRenderer->list = hoedown_patch_render_list;
+    htmlRenderer->table = hoedown_patch_render_table;
+    htmlRenderer->table_cell = hoedown_patch_render_table_cell;
+    htmlRenderer->footnote_def = hoedown_patch_render_footnote_def;
 
     hoedown_html_renderer_state_extra *extra =
         hoedown_malloc(sizeof(hoedown_html_renderer_state_extra));
@@ -703,6 +711,13 @@ NS_INLINE NSString *MPPreviewHeadTags(NSString *checkboxBridgeToken)
     NSURL *exportURL = MPExtensionURL(@"export", @"css");
     [stylesheets addObject:[MPStyleSheet CSSWithURL:exportURL]];
 
+    // Load bidi.css after export.css so its [dir="rtl"] overrides beat the
+    // theme sheets, which indent and rule with physical left/right properties.
+    // The sheet is static and direction-independent, so it never invalidates
+    // the preview's DOM fast path.
+    NSURL *bidiURL = MPExtensionURL(@"bidi", @"css");
+    [stylesheets addObject:[MPStyleSheet CSSWithURL:bidiURL]];
+
     return stylesheets;
 }
 
@@ -954,6 +969,16 @@ NS_INLINE NSString *MPPreviewHeadTags(NSString *checkboxBridgeToken)
         NSURL *exportURL = MPExtensionURL(@"export", @"css");
         [styles addObject:[MPStyleSheet CSSWithURL:exportURL]];
     }
+
+    // bidi.css carries the LTR island for code and maths and the [dir="rtl"]
+    // theme overrides. The document's blocks carry dir attributes
+    // unconditionally, so the island must ship even with styles off, or code
+    // and maths export bidi-reordered. Force the styles channel embedded:
+    // with styles and highlighting both off it otherwise stays MPAssetNone and
+    // MPAsset drops every sheet. Registered after export.css to keep the cascade.
+    NSURL *bidiURL = MPExtensionURL(@"bidi", @"css");
+    [styles addObject:[MPStyleSheet CSSWithURL:bidiURL]];
+    stylesOption = MPAssetEmbedded;
 
     NSString *title = [self.dataSource rendererHTMLTitle:self];
     if (!title)
